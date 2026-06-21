@@ -1,0 +1,159 @@
+"""
+╔══════════════════════════════════════════════════════╗
+║       ÉTAPE 4 — API FLASK                            ║
+╚══════════════════════════════════════════════════════╝
+Objectif : exposer le modèle via une API web Flask.
+Routes :
+  GET  /           → page principale (index.html)
+  POST /predict    → prédiction + recommandation
+  GET  /historique → tableau des prédictions passées
+  GET  /metriques  → précision du modèle (JSON)
+
+  
+"""
+
+import io
+import base64
+import csv
+import os
+from datetime import datetime
+
+import joblib
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")    # backend sans interface graphique pour Flask
+import matplotlib.pyplot as plt
+
+from flask import Flask, jsonify, render_template, request
+
+# ── 4.1  Initialisation ─────────────────────────────────────────────────────
+app    = Flask(__name__)
+model  = joblib.load("model.pkl")
+scaler = joblib.load("scaler.pkl")
+
+try:
+    metrics = joblib.load("metriques.pkl")
+except FileNotFoundError:
+    metrics = {"mae": "N/A", "rmse": "N/A", "r2": "N/A"}
+
+HISTORIQUE_CSV = "historique_predictions.csv"
+SEUIL_CRITIQUE = 0.20
+SEUIL_FAIBLE   = 0.50
+
+# ── 4.2  Fonctions utilitaires ──────────────────────────────────────────────
+def predire_ventes(stock: float, purchase: float) -> float:
+    donnees = np.array([[stock, purchase]])
+    donnees_norm = scaler.transform(donnees)
+    return round(float(model.predict(donnees_norm)[0]), 2)
+
+
+def recommandation(stock: float, ventes_prevues: float) -> dict:
+    ratio    = stock / ventes_prevues if ventes_prevues > 0 else 1.0
+    quantite = max(0, round(ventes_prevues - stock))
+
+    if ratio < SEUIL_CRITIQUE:
+        niveau, decision = "CRITIQUE",  f"Commander {quantite} unités IMMÉDIATEMENT"
+    elif ratio < SEUIL_FAIBLE:
+        niveau, decision = "FAIBLE",    f"Passer commande de {quantite} unités bientôt"
+    elif stock < ventes_prevues:
+        niveau, decision = "ATTENTION", f"Stock légèrement insuffisant ({quantite} manquantes)"
+    else:
+        niveau, decision = "SUFFISANT", "Stock suffisant, aucune action requise"
+
+    return {
+        "ventes_prevues":       ventes_prevues,
+        "quantite_a_commander": quantite,
+        "ratio_stock":          round(ratio * 100, 1),
+        "niveau":               niveau,
+        "decision":             decision,
+    }
+
+
+def sauvegarder_historique(stock, purchase, ventes, result):
+    """Ajoute une ligne dans le CSV d'historique."""
+    existe = os.path.exists(HISTORIQUE_CSV)
+    with open(HISTORIQUE_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not existe:
+            writer.writerow(["date", "stock", "purchase",
+                             "ventes_prevues", "niveau", "quantite_commander"])
+        writer.writerow([
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+            stock, purchase,
+            ventes, result["niveau"], result["quantite_a_commander"]
+        ])
+
+
+def generer_graphique_mini(stock, ventes):
+    """Génère un mini graphique barres et retourne un PNG en base64."""
+    fig, ax = plt.subplots(figsize=(4, 2.5))
+    bars = ax.bar(["Stock actuel", "Ventes prévues"], [stock, ventes],
+                  color=["#1a73e8", "#ea4335"], width=0.5)
+    ax.bar_label(bars, fmt="%.0f", padding=4, fontsize=9)
+    ax.set_title("Stock vs Ventes prévues", fontsize=10)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=120)
+    plt.close()
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode("utf-8")
+
+# ── 4.3  Routes Flask ───────────────────────────────────────────────────────
+@app.route("/")
+def home():
+    return render_template("index.html", metrics=metrics)
+
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    try:
+        stock    = float(request.form["stock"])
+        purchase = float(request.form["purchase"])
+    except (KeyError, ValueError):
+        return render_template("index.html",
+                               error="Valeurs invalides. Entrez des nombres.",
+                               metrics=metrics)
+
+    ventes = predire_ventes(stock, purchase)
+    result = recommandation(stock, ventes)
+    sauvegarder_historique(stock, purchase, ventes, result)
+    graphique = generer_graphique_mini(stock, ventes)
+
+    return render_template(
+        "index.html",
+        prediction        = result["ventes_prevues"],
+        decision_text     = result["decision"],
+        niveau            = result["niveau"],
+        quantite          = result["quantite_a_commander"],
+        ratio_stock       = result["ratio_stock"],
+        graphique_base64  = graphique,
+        metrics           = metrics,
+    )
+
+
+@app.route("/historique")
+def historique():
+    """Retourne le tableau des prédictions en JSON."""
+    if not os.path.exists(HISTORIQUE_CSV):
+        return jsonify({"historique": [], "message": "Aucune prédiction encore."})
+    df = pd.read_csv(HISTORIQUE_CSV)
+    return jsonify({"historique": df.tail(20).to_dict(orient="records")})
+
+
+@app.route("/metriques")
+def metriques():
+    """Retourne les métriques du modèle en JSON."""
+    return jsonify(metrics)
+
+
+# ── 4.4  Lancement ──────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    print("=" * 55)
+    print("  Serveur Flask démarré")
+    print("  Ouvrez : http://127.0.0.1:5000")
+    print("=" * 55)
+    app.run(debug=True)

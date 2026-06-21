@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>SmartStock Pro Dashboard</title>
+
+<style>
+:root{
+  --bg:#0f172a;
+  --panel:#111c33;
+  --card:#1e293b;
+  --text:#e2e8f0;
+  --muted:#94a3b8;
+  --blue:#3b82f6;
+  --green:#22c55e;
+  --red:#ef4444;
+  --border:#263244;
+}
+
+*{box-sizing:border-box;font-family:Arial;}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+  width:220px;
+  height:100vh;
+  background:var(--panel);
+  padding:20px;
+  position:fixed;
+}
+
+.sidebar h2{
+  color:var(--blue);
+  margin-bottom:30px;
+}
+
+.nav{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.nav div{
+  padding:10px;
+  border-radius:8px;
+  color:var(--muted);
+  cursor:pointer;
+}
+
+.nav div:hover{
+  background:var(--card);
+  color:white;
+}
+
+/* MAIN */
+.main{
+  margin-left:240px;
+  padding:20px;
+  width:100%;
+}
+
+/* HEADER */
+.header h1{
+  margin:0;
+}
+
+.header p{
+  color:var(--muted);
+}
+
+/* GRID */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:15px;
+  margin-top:20px;
+}
+
+.card{
+  background:var(--card);
+  padding:15px;
+  border-radius:12px;
+  border:1px solid var(--border);
+}
+
+/* FORM */
+input{
+  width:100%;
+  padding:10px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:#69c6eb;
+  color:white;
+}
+
+button{
+  width:100%;
+  padding:12px;
+  border:none;
+  background:var(--blue);
+  color:white;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+button:hover{
+  background:#6088df;
+}
+
+/* RESULT — carte claire façon "Image 1" */
+.result-light{
+  margin-top:20px;
+  padding:24px;
+  background:#ffffff;
+  border-radius:14px;
+  border:1px solid #e2e8f0;
+}
+
+.result-title{
+  margin:0 0 18px 0;
+  font-size:15px;
+  font-weight:700;
+  color:#1e293b;
+}
+
+.stat-row{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:18px;
+}
+
+.stat-box{
+  text-align:center;
+  padding:10px 6px;
+}
+
+.stat-val{
+  font-size:26px;
+  font-weight:700;
+}
+.stat-val.blue{ color:#1a73e8; }
+.stat-val.orange{ color:#f59e0b; }
+
+.stat-lbl{
+  font-size:12px;
+  color:#64748b;
+  margin-top:4px;
+}
+
+.decision-banner-light{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 16px;
+  border-radius:10px;
+  font-size:14px;
+  color:#1e293b;
+}
+.decision-banner-light.danger{ background:#fce8e6; }
+.decision-banner-light.danger b{ color:#c5221f; }
+.decision-banner-light.warning{ background:#fef3cd; }
+.decision-banner-light.warning b{ color:#92400e; }
+.decision-banner-light.success{ background:#e6f4ea; }
+.decision-banner-light.success b{ color:#1a7a35; }
+
+.decision-icon{ font-size:18px; flex-shrink:0; }
+
+img{
+  width:100%;
+  margin-top:14px;
+  border-radius:10px;
+}
+
+/* KPI */
+.kpi{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-top:20px;
+}
+
+.kpi-box{
+  background:var(--card);
+  padding:15px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  text-align:center;
+}
+
+.kpi-box h2{
+  margin:0;
+  color:var(--blue);
+}
+
+@media(max-width:900px){
+  .grid,.kpi{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .main{margin-left:0;}
+}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <h2>📊 SmartStock</h2>
+  <div class="nav">
+    <div>Dashboard</div>
+    <div>Prediction</div>
+    <div>Historique</div>
+    <div>Métriques</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>SmartStock Pro Dashboard</h1>
+    <p>IA pour prédiction des ventes et gestion des stocks</p>
+  </div>
+
+  <!-- FORM -->
+  <div class="grid">
+
+    <div class="card">
+      <form action="/predict" method="POST">
+
+        <label>Stock</label>
+        <input type="number" name="stock" required>
+
+        <label>Achats</label>
+        <input type="number" name="purchase" required>
+
+        <label>Date</label>
+        <input type="date" name="date" required>
+
+        <button type="submit">Lancer prédiction</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- RESULT -->
+  {% if prediction %}
+  <div class="result-light">
+
+    <h3 class="result-title">Résultat de la prédiction</h3>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-val blue">{{ prediction }}</div>
+        <div class="stat-lbl">Ventes prévues</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val orange">{{ ratio_stock }}%</div>
+        <div class="stat-lbl">Ratio stock</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val orange">{{ quantite }} unités</div>
+        <div class="stat-lbl">À commander</div>
+      </div>
+    </div>
+
+    <div class="decision-banner-light
+      {% if niveau == 'CRITIQUE' %}danger
+      {% elif niveau == 'FAIBLE' or niveau == 'ATTENTION' %}warning
+      {% else %}success{% endif %}">
+      <span class="decision-icon">
+        {% if niveau == 'CRITIQUE' %}🚨{% elif niveau == 'FAIBLE' or niveau == 'ATTENTION' %}⚠️{% else %}✅{% endif %}
+      </span>
+      <span>Décision : <b>{{ decision_text }}</b></span>
+    </div>
+
+    {% if graphique_base64 %}
+      <img src="data:image/png;base64,{{ graphique_base64 }}">
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+  <!-- KPI : affiché seulement après une prédiction -->
+  {% if prediction %}
+  <div class="kpi">
+    <div class="kpi-box">
+      <h2>{{ metrics.mae if metrics.mae == "N/A" else (metrics.mae | round(2)) }}</h2>
+      <p>MAE</p>
+    </div>
+
+    <div class="kpi-box">
+      <h2>{{ metrics.rmse if metrics.rmse == "N/A" else (metrics.rmse | round(2)) }}</h2>
+      <p>RMSE</p>
+    </div>
+
+    <div class="kpi-box">
+      <h2>{{ metrics.r2 if metrics.r2 == "N/A" else (metrics.r2 | round(4)) }}</h2>
+      <p>R²</p>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+</body>
+</html>

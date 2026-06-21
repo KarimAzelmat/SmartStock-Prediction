@@ -1,0 +1,112 @@
+"""
+╔══════════════════════════════════════════════════════╗
+║       ÉTAPE 3 — SYSTÈME DE RECOMMANDATION            ║
+╚══════════════════════════════════════════════════════╝
+Objectif : utiliser le modèle pour faire des prédictions,
+           calculer la quantité à commander, tester
+           plusieurs scénarios.
+"""
+
+import joblib
+import numpy as np
+
+# ── 3.1  Charger le modèle et le scaler ────────────────────────────────────
+print("=" * 55)
+print("  3.1  CHARGEMENT DU MODÈLE")
+print("=" * 55)
+
+model   = joblib.load("model.pkl")
+scaler  = joblib.load("scaler.pkl")
+metrics = joblib.load("metriques.pkl")
+
+print(f"  Modèle chargé     ✓")
+print(f"  MAE  du modèle    : {metrics['mae']}")
+print(f"  RMSE du modèle    : {metrics['rmse']}")
+print(f"  R²   du modèle    : {metrics['r2']} ({metrics['r2']*100:.1f}%)")
+
+# ── 3.2  Fonction de prédiction ─────────────────────────────────────────────
+def predire_ventes(stock: float, purchase: float) -> float:
+    """Prédit les ventes à partir du stock et des achats."""
+    donnees = np.array([[stock, purchase]])
+    donnees_norm = scaler.transform(donnees)
+    return round(float(model.predict(donnees_norm)[0]), 2)
+
+# ── 3.3  Fonction de recommandation ─────────────────────────────────────────
+SEUIL_CRITIQUE = 0.20   # commander si stock < 20% de la demande prévue
+SEUIL_FAIBLE   = 0.50   # alerte si stock < 50% de la demande prévue
+
+def recommandation(stock: float, ventes_prevues: float) -> dict:
+    """
+    Retourne la décision et la quantité à commander.
+    Niveaux :
+      - CRITIQUE  : stock < 20% des ventes prévues → commander maintenant
+      - FAIBLE    : stock < 50% des ventes prévues → surveiller
+      - SUFFISANT : stock >= ventes prévues        → rien à faire
+    """
+    ratio = stock / ventes_prevues if ventes_prevues > 0 else 1.0
+    quantite = max(0, round(ventes_prevues - stock))
+
+    if ratio < SEUIL_CRITIQUE:
+        niveau  = "CRITIQUE"
+        message = f"Commander {quantite} unités IMMÉDIATEMENT"
+    elif ratio < SEUIL_FAIBLE:
+        niveau  = "FAIBLE"
+        message = f"Passer commande de {quantite} unités bientôt"
+    elif stock < ventes_prevues:
+        niveau  = "ATTENTION"
+        message = f"Stock légèrement insuffisant ({quantite} unités manquantes)"
+    else:
+        niveau  = "SUFFISANT"
+        message = "Stock suffisant, aucune action requise"
+
+    return {
+        "ventes_prevues":    ventes_prevues,
+        "stock_actuel":      stock,
+        "ratio_stock":       round(ratio * 100, 1),
+        "quantite_a_commander": quantite,
+        "niveau":            niveau,
+        "message":           message,
+    }
+
+# ── 3.4  Tests sur plusieurs scénarios ──────────────────────────────────────
+print("\n" + "=" * 55)
+print("  3.2  SCÉNARIOS DE TEST")
+print("=" * 55)
+
+scenarios = [
+    {"nom": "Stock critique",   "stock": 5,   "purchase": 10},
+    {"nom": "Stock faible",     "stock": 20,  "purchase": 30},
+    {"nom": "Stock suffisant",  "stock": 80,  "purchase": 50},
+    {"nom": "Stock abondant",   "stock": 200, "purchase": 40},
+]
+
+for s in scenarios:
+    ventes = predire_ventes(s["stock"], s["purchase"])
+    result = recommandation(s["stock"], ventes)
+
+    print(f"\n  Scénario : {s['nom']}")
+    print(f"    Stock actuel      : {s['stock']}")
+    print(f"    Achats            : {s['purchase']}")
+    print(f"    Ventes prévues    : {ventes}")
+    print(f"    Ratio stock       : {result['ratio_stock']}%")
+    print(f"    Niveau            : {result['niveau']}")
+    print(f"    ► {result['message']}")
+
+# ── 3.5  Prédiction manuelle ────────────────────────────────────────────────
+print("\n" + "=" * 55)
+print("  3.3  TEST MANUEL (valeurs personnalisées)")
+print("=" * 55)
+
+stock_saisi    = 40
+purchase_saisi = 25
+
+ventes = predire_ventes(stock_saisi, purchase_saisi)
+result = recommandation(stock_saisi, ventes)
+
+print(f"  Stock    : {stock_saisi}")
+print(f"  Achats   : {purchase_saisi}")
+print(f"  Ventes prévues : {ventes}")
+print(f"  Décision       : {result['niveau']}")
+print(f"  ► {result['message']}")
+
+print("\n  Étape 3 terminée — passez à etape4_api_flask.py")
